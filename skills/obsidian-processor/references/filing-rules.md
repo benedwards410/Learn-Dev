@@ -15,7 +15,10 @@ Decide in this order: **superseded/finished → Archive**, **has an end → Proj
 
 ### Subfolders
 
-One level, named after the category, e.g. `30-Reference/RAG Pipeline/`. Create one only when **3 or more notes** in that top folder share the category, counting this plan. `scan.category_folders` gives the current counts. Below 3, the notes stay directly in the top folder.
+One level, named after the category, e.g. `30-Reference/RAG Pipeline/`. This is a rule, not a suggestion: create one only when **3 or more notes** in that top folder share the category, counting this plan *and* the notes its splits create.
+- `scan.category_folders` gives the counts before the plan.
+- `apply --dry-run` warns when a subfolder would end up with fewer than 3.
+- Below 3, the notes stay directly in the top folder.
 
 Never nest deeper than `Top/Category/`.
 
@@ -59,6 +62,6 @@ If two notes would swap names in one run, do it as two runs.
 
 ## Scopes and batches
 
-- `--scope changed`: notes with no frontmatter, notes edited since `processed`, and notes loose in the root or Inbox.
-- At most 25 notes per plan. For a 300-note first triage, run batches and report each batch's bottom line, then a final total.
+- `--scope changed`: notes with no frontmatter, and notes edited since `processed`. Inbox drafts and daily notes come back only when they've been edited. Use `--scope inbox` to revisit the Inbox on purpose.
+- At most 25 notes per plan (`apply` refuses more). For a 300-note first triage, run batches and report each batch's bottom line, then a final total.
 - A note already processed and unchanged needs no entry. If you include it anyway with the same values, `apply` reports "nothing to change".

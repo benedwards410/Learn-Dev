@@ -98,8 +98,21 @@ class ScanAndOutline(VaultCase):
     def test_related_finds_duplicate(self):
         code, out = run("related", self.v, "Python.md")
         self.assertEqual(code, 0)
-        top = out["related"]["Python.md"][0]
+        top = out["related"]["Python"][0]
         self.assertEqual(top["path"], "File types for parsing.md")
+
+    def test_related_unknown_name_is_per_note(self):
+        code, out = run("related", self.v, "Python.md", "No Such Note")
+        self.assertIn("Python", out["related"])
+        self.assertTrue(any("No Such Note" in e for e in out["errors"]))
+
+    def test_related_sees_planned_splits(self):
+        run("init", self.v)
+        code, out = run("related", self.v, "RAG Pipeline litellm Prompt", "Fantasy Football", "--plan", PLAN)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["related"]["RAG Pipeline litellm Prompt"], "planned split note can be scored")
+        ff = [r["name"] for r in out["related"]["Fantasy Football"]]
+        self.assertNotIn("KCE Ops Notes", ff[:1], "fantasy section no longer counted inside the KCE note")
 
     def test_horizontal_rule_is_not_frontmatter(self):
         fm, body, n = vault.split_frontmatter("---\nJust a rule\n\nText\n---\nMore\n")
@@ -235,6 +248,19 @@ class ApplyTriage(VaultCase):
         self.assertEqual(code, 0, out)
         self.assertIsNone(out["run_id"], out.get("operations"))
 
+    def test_scan_changed_skips_processed_daily_and_inbox(self):
+        code, out = run("scan", self.v)
+        paths = [n["path"] for n in out["notes"]]
+        self.assertNotIn("2026-11-01.md", paths)
+        self.assertNotIn("00-Inbox/Untitled 3.md", paths)
+        code, out = run("check", self.v, "--json")
+        self.assertEqual(out["loose_in_root"], 0, "daily notes don't count as loose")
+
+    def test_manifest_records_plan(self):
+        manifest = json.loads((self.v / ".obsidian-processor/runs" / f"{self.out['run_id']}.json").read_text())
+        self.assertEqual(manifest["plan"], str(PLAN.resolve()))
+        self.assertTrue(manifest["complete"])
+
     def test_undo_restores_byte_identical(self):
         code, out = run("undo", self.v)
         self.assertEqual(code, 0, out)
@@ -291,6 +317,45 @@ class PlanValidation(VaultCase):
         p = self.v / "Python.md"
         p.write_text("---\nprocessor: skip\n---\n" + p.read_text())
         self.expect_error({"notes": [{"path": "Python.md", "folder": "30-Reference"}]}, "processor: skip")
+
+    def expect_warning(self, plan: dict, fragment: str):
+        code, out = self.apply(self.write_plan(plan), dry=True)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(any(fragment in w for w in out["warnings"]), out["warnings"])
+        return out
+
+    def test_unknown_keys_rejected(self):
+        self.expect_error({"notes": [{"path": "Python.md", "fronmatter": {}}]}, "unknown keys")
+        self.expect_error({"notes": [{"path": "kce notes final v2.md", "splits": [
+            {"start": 15, "end": 23, "mode": "append", "target": "Fantasy Football", "tittle": "x"}]}]}, "unknown keys")
+
+    def test_unresolvable_related_rejected(self):
+        self.expect_error({"notes": [{"path": "Python.md", "frontmatter": {"related": ["Does Not Exist"]}}]},
+                          "broken link")
+
+    def test_batch_limit(self):
+        self.expect_error({"notes": [{"path": "Python.md"}] * 26}, "the limit is 25")
+
+    def test_tags_cleaned(self):
+        out = self.expect_warning({"notes": [{"path": "Python.md", "frontmatter": {"tags": ["#RAG", "Two Words"]}}]},
+                                  "two-words")
+        self.assertEqual(out["operations"][0]["frontmatter"]["tags"], ["rag", "two-words"])
+
+    def test_category_reuses_vault_spelling(self):
+        (self.v / "Reading List.md").write_text("---\ncategory: Books\n---\n# Reading List\n")
+        out = self.expect_warning({"notes": [{"path": "Python.md", "frontmatter": {"category": "books"}}]},
+                                  "existing 'Books'")
+        self.assertEqual(out["operations"][0]["frontmatter"]["category"], "Books")
+
+    def test_thin_subfolder_and_small_split_warn(self):
+        self.expect_warning({"notes": [{"path": "Reading List.md", "folder": "20-Areas/Books"}]}, "subfolder")
+        self.expect_warning({"notes": [{"path": "kce notes final v2.md", "splits": [
+            {"start": 25, "end": 26, "mode": "new", "title": "Follow Ups", "folder": "20-Areas"}]}]}, "split threshold")
+
+    def test_collision_reported_once(self):
+        code, out = self.apply(self.write_plan(
+            {"notes": [{"path": "Python.md", "title": "matrix billing"}]}), dry=True)
+        self.assertEqual(sum("name collision" in e for e in out["errors"]), 1, out["errors"])
 
     def test_requires_init(self):
         shutil.rmtree(self.v / ".obsidian-processor")

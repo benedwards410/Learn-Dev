@@ -8,7 +8,8 @@
     "request": {"type": "string", "description": "The user's request, for the manifest (e.g. \"triage my vault\")."},
     "notes": {
       "type": "array",
-      "maxItems": 50,
+      "maxItems": 25,
+      "description": "At most batch_size (default 25) notes per plan; apply refuses more.",
       "items": {
         "type": "object",
         "required": ["path"],

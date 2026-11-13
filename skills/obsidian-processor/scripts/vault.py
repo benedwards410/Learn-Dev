@@ -73,6 +73,10 @@ LIFECYCLE_STATUS = {"superseded", "archived"}               # may overwrite stat
 CREATED_SYNONYMS = ["created", "date created", "created_at", "creation date", "date"]
 VALID_STATUS = {"draft", "active", "superseded", "archived"}
 VALID_ORIGIN = {"user", "llm", "mixed", "unknown"}
+PLAN_KEYS = {"request", "notes", "questions"}
+ENTRY_KEYS = {"path", "title", "folder", "frontmatter", "splits", "insert_top", "body_edits", "summary"}
+SPLIT_KEYS = {"start", "end", "mode", "title", "folder", "target", "frontmatter", "summary"}
+SCRIPT_KEYS = {"created", "modified", "processed", "aliases", "split_from"}
 
 BAD_NAME_CHARS = set('#|^:%[]/\\*"<>?')
 VERSION_WORD_RE = re.compile(r"(\bv\d+(\.\d+)*\b|\bfinal\b|\bcopy\b|\(\d+\)\s*$)", re.I)
@@ -420,6 +424,14 @@ def norm_item(key: str, value) -> str:
     if key == "related":
         return link_name(s).lower()
     return s.lower()
+
+
+def clean_tag(value) -> str:
+    """Obsidian tag rules: no spaces, letters/digits/_/-/ only, not purely numeric."""
+    s = str(value).strip().lstrip("#").lower()
+    s = re.sub(r"\s+", "-", s)
+    s = re.sub(r"[^\w\-/]", "", s)
+    return s.strip("-/")
 
 
 def link_name(value: str) -> str:
@@ -993,8 +1005,7 @@ def note_info(vault: Path, rel: str, cfg: dict, detail: bool = True) -> dict:
         "created_guess": created_guess(path, rel, fm),
         "mtime": mtime_dt(path).isoformat(),
         "processed": fm.get("processed"),
-        "needs_processing": (fm_lines is None or edited_since_processed(path, fm)
-                             or folder.lower() in ("", cfg["folders"]["inbox"].lower())),
+        "needs_processing": fm_lines is None or edited_since_processed(path, fm),
     }
     if detail:
         info["headings"] = headings[:40]
@@ -1010,7 +1021,7 @@ def cmd_scan(vault: Path, scope: str, paths: list[str] | None, out: str | None) 
     folders, categories, tags = Counter(), Counter(), Counter()
     cat_folders: dict[str, Counter] = defaultdict(Counter)
     infos, errors = [], []
-    wanted = {p.strip("/") for p in paths} if paths else None
+    wanted = {resolve_note_arg(vault, p, notes) for p in paths} if paths else None
     inbox = cfg["folders"]["inbox"].lower()
     for rel in notes:
         try:
@@ -1109,26 +1120,72 @@ def cmd_related(vault: Path, queries: list[str], top: int, plan_path: str | None
     if plan_path:
         plan = json.loads(Path(plan_path).read_text(encoding="utf-8"))
         for n in plan.get("notes", []):
-            overlay[n["path"].strip("/")] = n
-    docs = {}
+            hit = None
+            try:
+                hit = resolve_note_arg(vault, n.get("path", ""), files)
+            except PlanError:
+                pass
+            if hit:
+                overlay[hit] = n
+    # raw material per note: body text, name, tags, category, status, links
+    raw: dict[str, dict] = {}
     for rel in notes:
         try:
             text, _ = read_note(vault / rel)
         except UnicodeDecodeError:
             continue
-        fm_lines, body, _ = split_frontmatter(text)
+        fm_lines, body, fm_count = split_frontmatter(text)
         fm = frontmatter_dict(fm_lines)
         planned = overlay.get(rel, {})
-        pfm = planned.get("frontmatter", {})
-        name = planned.get("title") or stem(rel)
-        tags = {norm_item("tags", t) for t in as_list(fm.get("tags")) + as_list(pfm.get("tags"))} | set(inline_tags(body))
-        category = pfm.get("category") or fm.get("category")
-        status = pfm.get("status") or fm.get("status")
+        pfm = planned.get("frontmatter") or {}
+        raw[rel] = {
+            "name": planned.get("title") or stem(rel),
+            "path": join_rel(planned["folder"], (planned.get("title") or stem(rel)) + ".md")
+                    if planned.get("folder") is not None else join_rel(parent_dir(rel), (planned.get("title") or stem(rel)) + ".md"),
+            "lines": text.split("\n"), "fm_count": fm_count,
+            "tags": {norm_item("tags", t) for t in as_list(fm.get("tags")) + as_list(pfm.get("tags"))} | set(inline_tags(body)),
+            "category": pfm.get("category") or fm.get("category"),
+            "status": pfm.get("status") or fm.get("status"),
+            "links": {split_wikilink(m.group(2))[0].strip().lower() for m in WIKILINK_RE.finditer(text)},
+            "cut": set(), "extra": [], "planned": False,
+        }
+    # planned splits: move the text to where it is going, so scores reflect the vault after the run
+    for rel, entry in overlay.items():
+        if rel not in raw:
+            continue
+        for split in entry.get("splits") or []:
+            try:
+                start, end = int(split["start"]), int(split["end"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            block = "\n".join(raw[rel]["lines"][start - 1:end])
+            raw[rel]["cut"].update(range(start - 1, end))
+            if split.get("mode", "new") == "append":
+                try:
+                    target = resolve_note_arg(vault, split.get("target", ""), files)
+                except PlanError:
+                    continue
+                if target in raw:
+                    raw[target]["extra"].append(block)
+            else:
+                title = (split.get("title") or "").strip()
+                if not title:
+                    continue
+                sfm = split.get("frontmatter") or {}
+                folder = split.get("folder") or parent_dir(raw[rel]["path"])
+                raw[f"(planned) {title}"] = {
+                    "name": title, "path": join_rel(folder, title + ".md"), "lines": block.split("\n"),
+                    "fm_count": 0, "tags": {norm_item("tags", t) for t in as_list(sfm.get("tags"))},
+                    "category": sfm.get("category"), "status": sfm.get("status"), "links": set(),
+                    "cut": set(), "extra": [], "planned": True,
+                }
+    docs = {}
+    for key, r in raw.items():
+        kept = [l for i, l in enumerate(r["lines"]) if i >= r["fm_count"] and i not in r["cut"]]
+        body = "\n".join(kept + r["extra"])
         heads = " ".join(m.group(2) for m in map(HEADING_RE.match, body.split("\n")) if m)
-        toks = tokens(strip_code(body)) + tokens(name) * 3 + tokens(heads) * 2
-        docs[rel] = {"name": name, "tf": Counter(toks), "tags": tags, "category": category,
-                     "status": status, "links": {split_wikilink(m.group(2))[0].strip().lower()
-                                                 for m in WIKILINK_RE.finditer(text)}}
+        toks = tokens(strip_code(body)) + tokens(r["name"]) * 3 + tokens(heads) * 2
+        docs[key] = dict(r, tf=Counter(toks))
     df = Counter()
     for d in docs.values():
         df.update(d["tf"].keys())
@@ -1138,16 +1195,24 @@ def cmd_related(vault: Path, queries: list[str], top: int, plan_path: str | None
         norm = math.sqrt(sum(v * v for v in vec.values())) or 1.0
         d["vec"] = {t: v / norm for t, v in vec.items()}
     archive = cfg["folders"]["archive"].lower()
-    results = {}
+    by_name = {d["name"].lower(): k for k, d in docs.items()}
+    results, errors = {}, []
     for q in queries:
-        rel = resolve_note_arg(vault, q, files)
-        if rel not in docs:
-            raise PlanError(f"{rel} is not a processable note")
-        me = docs[rel]
+        key = by_name.get(link_name(q).lower()) if not (vault / q).is_file() else None
+        if key is None:
+            try:
+                key = resolve_note_arg(vault, q, files)
+            except PlanError as exc:
+                errors.append(str(exc))
+                continue
+        if key not in docs:
+            errors.append(f"{key} is not a processable note")
+            continue
+        me = docs[key]
         scored = []
         for other, d in docs.items():
-            if other == rel or other.lower().startswith(archive + "/") or str(d["status"]).lower() in LIFECYCLE_STATUS \
-                    or is_daily(other, cfg):
+            if other == key or d["path"].lower().startswith(archive + "/") or str(d["status"]).lower() in LIFECYCLE_STATUS \
+                    or (not d["planned"] and is_daily(other, cfg)):
                 continue
             cos = sum(v * d["vec"].get(t, 0.0) for t, v in me["vec"].items())
             union = me["tags"] | d["tags"]
@@ -1157,14 +1222,15 @@ def cmd_related(vault: Path, queries: list[str], top: int, plan_path: str | None
             if score <= 0.02:
                 continue
             scored.append({
-                "name": d["name"], "path": other, "score": round(score, 3), "text": round(cos, 3),
-                "shared_tags": sorted(me["tags"] & d["tags"]), "same_category": bool(cat),
-                "already_linked": d["name"].lower() in me["links"] or stem(other).lower() in me["links"],
+                "name": d["name"], "path": d["path"], "planned": d["planned"], "score": round(score, 3),
+                "text": round(cos, 3), "shared_tags": sorted(me["tags"] & d["tags"]), "same_category": bool(cat),
+                "already_linked": d["name"].lower() in me["links"],
             })
         scored.sort(key=lambda s: -s["score"])
-        results[rel] = scored[:top]
-    emit({"related": results, "note": "Shortlist only. Pick the 3-5 a reader would actually want next."})
-    return 0
+        results[me["name"]] = scored[:top]
+    emit({"ok": not errors, "related": results, "errors": errors,
+          "note": "Shortlist only. Keep up to 5 a reader would actually want next; fewer is fine, never pad."})
+    return 0 if results or not errors else 1
 
 
 # ---------------------------------------------------------------- apply
@@ -1209,8 +1275,11 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
     plan = json.loads(Path(plan_path).read_text(encoding="utf-8"))
     entries = plan_notes(plan)
     questions = plan.get("questions") or []
+    if set(plan) - PLAN_KEYS:
+        errors.append(f"plan has unknown keys {sorted(set(plan) - PLAN_KEYS)}; allowed: {sorted(PLAN_KEYS)}")
     if len(entries) > cfg["batch_size"]:
-        warnings.append(f"{len(entries)} notes in one plan; batches of {cfg['batch_size']} are easier to review and undo")
+        errors.append(f"{len(entries)} notes in one plan; the limit is {cfg['batch_size']} per run (batch_size). "
+                      f"Split the plan into batches")
 
     files = list(walk_files(vault))
     md_files = [f for f in files if f.lower().endswith(".md")]
@@ -1232,11 +1301,58 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
         hit = resolver.wikilink(link_name(ref) if "[[" in ref else ref, "")
         return hit if hit and hit.lower().endswith(".md") else None
 
+    vault_categories: dict[str, str] = {}
+    for f in md_files:
+        if is_processable(f, cfg):
+            try:
+                cat = frontmatter_dict(split_frontmatter(read_note(vault / f)[0])[0]).get("category")
+            except UnicodeDecodeError:
+                continue
+            if isinstance(cat, str) and cat.strip():
+                vault_categories.setdefault(cat.strip().lower(), cat.strip())
+
+    def vet_frontmatter(pfm: dict, where: str) -> None:
+        if not isinstance(pfm, dict):
+            errors.append(f"{where}: frontmatter must be an object")
+            return
+        if pfm.get("status") and pfm["status"] not in VALID_STATUS:
+            errors.append(f"{where}: status {pfm['status']!r} must be one of {sorted(VALID_STATUS)}")
+        if pfm.get("origin") and pfm["origin"] not in VALID_ORIGIN:
+            errors.append(f"{where}: origin {pfm['origin']!r} must be one of {sorted(VALID_ORIGIN)}")
+        for key in sorted(SCRIPT_KEYS & set(pfm)):
+            warnings.append(f"{where}: '{key}' is set by the script; your value is used only if the note has none")
+        if "tags" in pfm:
+            cleaned = []
+            for tag in as_list(pfm["tags"]):
+                c = clean_tag(tag)
+                if not c or re.fullmatch(r"[\d/]+", c):
+                    errors.append(f"{where}: tag {tag!r} is not a valid Obsidian tag")
+                    continue
+                if c != str(tag).strip().lstrip("#").lower():
+                    warnings.append(f"{where}: tag {tag!r} written as {c!r} (Obsidian tags can't contain spaces)")
+                cleaned.append(c)
+            pfm["tags"] = list(dict.fromkeys(cleaned))
+        cat = pfm.get("category")
+        if isinstance(cat, str) and cat.strip():
+            known = vault_categories.get(cat.strip().lower())
+            if known and known != cat:
+                warnings.append(f"{where}: category {cat!r} written as the vault's existing {known!r}")
+                pfm["category"] = known
+            elif not known and cat.strip()[0].islower():
+                warnings.append(f"{where}: category {cat!r} is new and not Title Case")
+            if not known:
+                vault_categories[cat.strip().lower()] = pfm["category"]
+
     # ---- pass 1: resolve every planned note and its final path ---------------------------
     moves: dict[str, str] = {}
     specs: list[dict] = []
     for i, entry in enumerate(entries):
         where = f"notes[{i}]"
+        if not isinstance(entry, dict):
+            errors.append(f"{where}: must be an object")
+            continue
+        if set(entry) - ENTRY_KEYS:
+            errors.append(f"{where}: unknown keys {sorted(set(entry) - ENTRY_KEYS)} (typo?); allowed: {sorted(ENTRY_KEYS)}")
         rel = find(entry.get("path", ""))
         if not rel:
             errors.append(f"{where}: note not found: {entry.get('path')!r}")
@@ -1274,11 +1390,43 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
         if code_ratio(body) > cfg["code_only_threshold"] and (
                 entry.get("splits") or entry.get("body_edits") or entry.get("insert_top")):
             errors.append(f"{where}: {rel} is mostly code/data; add frontmatter only (no splits or edits)")
-        pfm = entry.get("frontmatter") or {}
-        if pfm.get("status") and pfm["status"] not in VALID_STATUS:
-            errors.append(f"{where}: status {pfm['status']!r} must be one of {sorted(VALID_STATUS)}")
-        if pfm.get("origin") and pfm["origin"] not in VALID_ORIGIN:
-            errors.append(f"{where}: origin {pfm['origin']!r} must be one of {sorted(VALID_ORIGIN)}")
+        vet_frontmatter(entry.setdefault("frontmatter", {}), where)
+        real = note.text.split("\n")
+        if real and real[-1] == "":
+            real = real[:-1]
+        spans = fence_spans(real)
+        body_lines = max(sum(1 for l in real[fm_count:] if l.strip()), 1)
+        ranges = []
+        for j, split in enumerate(entry.get("splits") or []):
+            swhere = f"{where}.splits[{j}]"
+            if not isinstance(split, dict):
+                errors.append(f"{swhere}: must be an object")
+                continue
+            if set(split) - SPLIT_KEYS:
+                errors.append(f"{swhere}: unknown keys {sorted(set(split) - SPLIT_KEYS)}; allowed: {sorted(SPLIT_KEYS)}")
+            vet_frontmatter(split.setdefault("frontmatter", {}), swhere)
+            try:
+                start, end = int(split["start"]), int(split["end"])
+            except (KeyError, TypeError, ValueError):
+                errors.append(f"{swhere}: needs integer start and end lines (from `outline`)")
+                continue
+            if start <= fm_count or end > len(real) or start > end:
+                errors.append(f"{swhere}: L{start}-L{end} is outside the note body (body is L{fm_count + 1}-L{len(real)})")
+                continue
+            if any(not (end < a or start > b) for a, b in ranges):
+                errors.append(f"{swhere}: L{start}-L{end} overlaps another split")
+                continue
+            if any(not (e < start or s0 > end) and not (start <= s0 and e <= end) for s0, e in spans):
+                errors.append(f"{swhere}: L{start}-L{end} cuts through a code block")
+                continue
+            moved = sum(1 for l in real[start - 1:end] if l.strip())
+            if not moved:
+                errors.append(f"{swhere}: L{start}-L{end} is empty")
+                continue
+            if moved < cfg["split_min_lines"] and moved / body_lines < cfg["split_min_share"]:
+                warnings.append(f"{swhere}: only {moved} lines ({int(100 * moved / body_lines)}% of the note); "
+                                f"below the split threshold, so consider a tag instead")
+            ranges.append((start, end))
         new_rel = join_rel(folder, title + ".md")
         if new_rel != rel:
             moves[rel] = new_rel
@@ -1309,6 +1457,8 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
                 folder = (split.get("folder") or parent_dir(spec["new_rel"])).strip("/")
                 errors += [f"{where}: {x}" for x in folder_problems(folder)]
                 dest = join_rel(folder, title + ".md")
+                if "/" not in dest:
+                    warnings.append(f"{where}: the new note {dest!r} would sit loose in the vault root; give it a folder")
                 if dest in created:
                     errors.append(f"{where}: two splits would create {dest}")
                 created[dest] = {"parent": spec["rel"], "split": split}
@@ -1323,16 +1473,24 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
         by_name[stem(f).lower()].append(f)
     touched = set(moves.values()) | set(created)
     old_names_moving = {stem(o).lower() for o, n in moves.items() if stem(o).lower() != stem(n).lower()}
+    reported = set()
     for f in sorted(touched):
-        others = [x for x in by_name[stem(f).lower()] if x != f]
-        if others:
-            errors.append(f"name collision: {f} vs {', '.join(others)}. Use a more specific title, "
+        group = tuple(sorted(by_name[stem(f).lower()]))
+        if len(group) > 1 and group not in reported:
+            reported.add(group)
+            errors.append(f"name collision: {' vs '.join(group)}. Use a more specific title, "
                           f"e.g. 'Name (Category)', never 'v2'")
         old = next((o for o, n in moves.items() if n == f), None)
         if (vault / f).exists() and not (old and old.lower() == f.lower()):
             errors.append(f"{f} already exists on disk")
         if stem(f).lower() in old_names_moving and not (old and stem(old).lower() == stem(f).lower()):
             errors.append(f"{f} takes the old name of another note renamed in this run; do it in two runs")
+
+    folder_counts = Counter(parent_dir(f) for f in final_paths)
+    for folder in sorted({parent_dir(f) for f in touched if parent_dir(f).count("/") >= 1}):
+        if folder_counts[folder] < cfg["subfolder_min_notes"]:
+            warnings.append(f"subfolder {folder!r} would hold {folder_counts[folder]} note(s); subfolders are for "
+                            f"{cfg['subfolder_min_notes']}+ notes sharing a category, so file into the top folder instead")
 
     final_name: dict[str, str] = {}
     for f in md_files:
@@ -1348,8 +1506,19 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
         hit = find(name)
         if hit:
             return f"[[{stem(moves.get(hit, hit))}]]"
-        warnings.append(f"link target {ref!r} doesn't match any note; written as-is")
         return f"[[{name}]]"
+
+    def check_links(pfm: dict, where: str) -> None:
+        for key in sorted(LINK_KEYS - {"split_from"}):
+            for ref in as_list(pfm.get(key)) if isinstance(pfm.get(key), list) else [pfm.get(key)]:
+                if ref and link_name(ref).lower() not in final_name and not find(link_name(ref)):
+                    errors.append(f"{where}: {key} {ref!r} doesn't match any note (or a note this plan creates); "
+                                  f"it would be a broken link")
+
+    for spec in specs:
+        check_links(spec["entry"].get("frontmatter") or {}, spec["where"])
+        for j, split in enumerate(spec["entry"].get("splits") or []):
+            check_links(split.get("frontmatter") or {}, f"{spec['where']}.splits[{j}]")
 
     if errors:
         return finish(errors, warnings, [], questions, dry_run)
@@ -1546,8 +1715,7 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
             labels.append("moved")
         if stem(new_rel) != stem(rel):
             labels.append("renamed")
-        if rel not in link_only and split_frontmatter(note.orig_text)[0] != split_frontmatter(note.text)[0] \
-                and not any(a in note.actions for a in ("split", "edited", "appended", "superseded")):
+        if rel not in link_only and split_frontmatter(note.orig_text)[0] != split_frontmatter(note.text)[0]:
             labels.append("frontmatter")
         note.actions = labels + [a for a in dict.fromkeys(note.actions)]
         changed.append(rel)
@@ -1555,15 +1723,20 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
         fm_lines, body, _ = split_frontmatter(info["text"])
         info["text"] = compose(merge_frontmatter(fm_lines, {"processed": stamp}), body)
 
+    def preview(text: str) -> dict:
+        return frontmatter_dict(split_frontmatter(text)[0]) if dry_run else {}
+
     summaries = {s["rel"]: s["entry"].get("summary", "") for s in specs}
     operations = []
     for dest, info in new_notes.items():
         operations.append({"path": None, "to": dest, "actions": ["created"],
                            "summary": info["split"].get("summary")
-                           or f"split out of [[{stem(moves.get(info['parent'], info['parent']))}]]"})
+                           or f"split out of [[{stem(moves.get(info['parent'], info['parent']))}]]",
+                           **({"frontmatter": preview(info["text"])} if dry_run else {})})
     for rel in changed:
         operations.append({"path": rel, "to": moves.get(rel, rel), "actions": loaded[rel].actions,
-                           "summary": summaries.get(rel) or ("links updated" if rel in link_only else "")})
+                           "summary": summaries.get(rel) or ("links updated" if rel in link_only else ""),
+                           **({"frontmatter": preview(loaded[rel].text)} if dry_run else {})})
 
     if errors or dry_run:
         return finish(errors, warnings, operations, questions, dry_run)
@@ -1585,6 +1758,7 @@ def cmd_apply(vault: Path, plan_path: str, dry_run: bool, now_override: str | No
             zf.writestr(rel, loaded[rel].orig_bytes)
     manifest = {"run_id": run_id, "tool_version": VERSION, "started": now.isoformat(), "complete": False,
                 "undone": False, "backup": backup_rel, "request": plan.get("request", ""),
+                "plan": str(Path(plan_path).resolve()),
                 "questions": questions, "files": []}
     for dest, info in new_notes.items():
         info["bytes"] = encode_note(info["text"], {"bom": False, "nl": "\n"})
@@ -1779,10 +1953,11 @@ def cmd_check(vault: Path, as_json: bool) -> int:
             if decoded and not resolver.mdlink(decoded, rel):
                 broken.append({"file": rel, "link": m.group(0)})
     dupes = {k: v for k, v in names.items() if len(v) > 1}
-    loose = [f for f in md_files if "/" not in f and is_processable(f, cfg)]
+    loose = [f for f in md_files if "/" not in f and is_processable(f, cfg) and not is_daily(f, cfg)]
     result = {
         "ok": True,
-        "notes": len(md_files),
+        "notes": sum(1 for f in md_files if is_processable(f, cfg)),
+        "all_markdown": len(md_files),
         "broken_links": len(broken),
         "duplicate_names": len(dupes),
         "missing_frontmatter": len(no_fm),

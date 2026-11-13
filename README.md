@@ -58,6 +58,6 @@ dist/obsidian-processor.skill packaged skill for upload
 Claude makes the judgment calls (what a note is about, where it goes). `vault.py` does the risky file work: exact line cuts, link rewrites, backups and undo. Your text is never retyped by a model.
 
 ```bash
-python3 -m unittest discover -s tests -v      # 29 tests
+python3 -m unittest discover -s tests -v      # 40 tests
 python3 skills/obsidian-processor/scripts/vault.py --help
 ```

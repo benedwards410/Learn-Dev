@@ -8,10 +8,17 @@
       "frontmatter": {
         "description": "How KCE bills Matrix, closes out jobs, and what to follow up on.",
         "category": "KCE",
-        "tags": ["kce", "operations", "billing"],
+        "tags": [
+          "kce",
+          "operations",
+          "billing"
+        ],
         "status": "active",
         "origin": "user",
-        "related": ["Matrix Billing", "Contractors"]
+        "related": [
+          "Matrix Billing",
+          "Contractors"
+        ]
       },
       "splits": [
         {
@@ -30,7 +37,9 @@
       "frontmatter": {
         "description": "League rules, draft plan and weekly reminders for fantasy football.",
         "category": "Fantasy Football",
-        "tags": ["fantasy-football"],
+        "tags": [
+          "fantasy-football"
+        ],
         "status": "active",
         "origin": "user"
       },
@@ -42,10 +51,15 @@
       "frontmatter": {
         "description": "When Matrix remittances arrive and where the batch rules live.",
         "category": "KCE",
-        "tags": ["kce", "billing"],
+        "tags": [
+          "kce",
+          "billing"
+        ],
         "status": "active",
         "origin": "user",
-        "related": ["KCE Ops Notes"]
+        "related": [
+          "KCE Ops Notes"
+        ]
       },
       "summary": "Filed to Areas."
     },
@@ -55,10 +69,16 @@
       "frontmatter": {
         "description": "Weekly checklist for reviewing KCE notes and billing.",
         "category": "Planning",
-        "tags": ["review", "checklist"],
+        "tags": [
+          "review",
+          "checklist"
+        ],
         "status": "active",
         "origin": "user",
-        "related": ["KCE Ops Notes", "Matrix Billing"]
+        "related": [
+          "KCE Ops Notes",
+          "Matrix Billing"
+        ]
       },
       "summary": "Filed to Areas."
     },
@@ -68,10 +88,15 @@
       "frontmatter": {
         "description": "When contractors can be assigned and the closeout rules they follow.",
         "category": "KCE",
-        "tags": ["kce", "contractors"],
+        "tags": [
+          "kce",
+          "contractors"
+        ],
         "status": "active",
         "origin": "user",
-        "related": ["KCE Ops Notes"]
+        "related": [
+          "KCE Ops Notes"
+        ]
       },
       "summary": "Filed to Areas."
     },
@@ -82,11 +107,19 @@
       "frontmatter": {
         "description": "Which file types the RAG parser reads, the chunk size, and the embedder.py code.",
         "category": "RAG Pipeline",
-        "tags": ["rag", "python", "parsing", "embeddings"],
+        "tags": [
+          "rag",
+          "python",
+          "parsing",
+          "embeddings"
+        ],
         "status": "active",
-        "origin": "mixed",
+        "origin": "unknown",
         "supersedes": "File types for parsing",
-        "related": ["Embedder Snippet", "RAG Pipeline litellm Prompt"]
+        "related": [
+          "Embedder Snippet",
+          "RAG Pipeline litellm Prompt"
+        ]
       },
       "summary": "Newer copy of the parsing note (adds embedder.py); kept as the active note."
     },
@@ -97,9 +130,12 @@
       "frontmatter": {
         "description": "Older list of file types the RAG parser reads; replaced by the embedding note.",
         "category": "RAG Pipeline",
-        "tags": ["rag", "parsing"],
+        "tags": [
+          "rag",
+          "parsing"
+        ],
         "status": "superseded",
-        "origin": "mixed",
+        "origin": "unknown",
         "superseded_by": "RAG File Types and Embedding"
       },
       "summary": "Superseded by [[RAG File Types and Embedding]]; archived, not deleted."
@@ -111,10 +147,16 @@
       "frontmatter": {
         "description": "Python snippet that embeds text and compares vectors with cosine similarity.",
         "category": "RAG Pipeline",
-        "tags": ["rag", "python", "embeddings"],
+        "tags": [
+          "rag",
+          "python",
+          "embeddings"
+        ],
         "status": "active",
         "origin": "unknown",
-        "related": ["RAG File Types and Embedding"]
+        "related": [
+          "RAG File Types and Embedding"
+        ]
       },
       "summary": "Mostly code: frontmatter only, content untouched."
     },
@@ -124,7 +166,10 @@
       "frontmatter": {
         "description": "Books to read next.",
         "category": "Books",
-        "tags": ["books", "reading"],
+        "tags": [
+          "books",
+          "reading"
+        ],
         "status": "active",
         "origin": "user"
       },
@@ -135,7 +180,10 @@
       "folder": "00-Inbox",
       "frontmatter": {
         "description": "Short reminder to call someone back on Tuesday; topic unclear.",
-        "tags": ["needs-review"],
+        "tags": [
+          "needs-review",
+          "reminder"
+        ],
         "status": "draft",
         "origin": "user"
       },
@@ -146,7 +194,9 @@
       "frontmatter": {
         "description": "Daily note: worked on the vault plan.",
         "category": "Journal",
-        "tags": ["daily"],
+        "tags": [
+          "daily"
+        ],
         "origin": "user"
       },
       "summary": "Daily note: frontmatter only, never renamed or moved."
@@ -158,10 +208,16 @@
       "frontmatter": {
         "description": "Goals and draft rules for the skill that files, names, splits and logs Obsidian notes.",
         "category": "Obsidian",
-        "tags": ["obsidian", "skill", "automation"],
+        "tags": [
+          "obsidian",
+          "skill",
+          "automation"
+        ],
         "status": "active",
         "origin": "mixed",
-        "related": ["RAG Pipeline litellm Prompt"]
+        "related": [
+          "RAG Pipeline litellm Prompt"
+        ]
       },
       "splits": [
         {
@@ -173,10 +229,16 @@
           "frontmatter": {
             "description": "Prompt for making litellm the only model interface in the RAG pipeline, chosen by config.",
             "category": "RAG Pipeline",
-            "tags": ["rag", "litellm", "prompt"],
+            "tags": [
+              "rag",
+              "litellm",
+              "prompt"
+            ],
             "status": "active",
             "origin": "llm",
-            "related": ["RAG File Types and Embedding"]
+            "related": [
+              "RAG File Types and Embedding"
+            ]
           },
           "summary": "litellm / RAG prompt split out of the skill plan"
         }

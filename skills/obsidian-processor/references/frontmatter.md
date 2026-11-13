@@ -30,16 +30,16 @@ processed: 2026-11-13T14:05
 
 | Key | You put it in the plan? | Rule |
 |---|---|---|
-| `title` | yes (or omit) | Defaults to the final filename. If the note already has a `title`, the user's value is kept and you should name the file after it. If the old `title` just mirrored the old filename, the script updates it on rename. |
+| `title` | yes (or omit) | Defaults to the final filename. A `title` that *differs* from the filename is the user's: it's kept, and you should name the file after it. A `title` equal to the filename was written by the script; the script updates it on rename, and it shouldn't stop you from renaming. |
 | `description` | **yes** | One plain-English line, ≤ 140 characters, saying what the note is *for*. Start with a noun or verb, not "This note…". |
-| `category` | **yes** | Exactly one, Title Case. Reuse a category from `scan.categories` whenever one fits. A new category is fine when nothing fits; then it's part of the vocabulary. |
-| `tags` | **yes** | 2–5, lowercase, kebab-case, no `#`. Nested tags are fine (`kce/billing`). Reuse `scan.tags`. Don't repeat the category as a tag unless the vault already does. Tags are only ever added, never removed. |
+| `category` | **yes** | Exactly one, Title Case. Reuse a category from `scan.categories` whenever one fits; `apply` respells a case-only variant to the vault's existing one. A new category is fine when nothing fits; then it's part of the vocabulary. Inbox drafts may leave it out until the topic is known. |
+| `tags` | **yes** | 2–5, lowercase, kebab-case, no `#`. Nested tags are fine (`kce/billing`). Reuse `scan.tags`. Don't repeat the category as a tag unless the vault already does. `apply` cleans what you send ("Two Words" → `two-words`, with a warning) and rejects tags that are purely numeric. Tags are only ever added, never removed. |
 | `status` | **yes** | `draft` (unclear / Inbox), `active`, `superseded`, `archived`. An existing user value is kept, except that the script moves `draft → active` when you file the note and always applies `superseded` / `archived`. |
 | `origin` | **yes** | `user`, `llm`, `mixed`, `unknown`. See `origin-detection.md`. |
-| `related` | **yes** | 3–5 note names (plain names; the script turns them into `"[[links]]"` using final names). Shortlist with `vault.py related … --plan PLAN.json`. Added to what's already there. |
+| `related` | **yes** | Up to 5 note names (plain names; the script turns them into `"[[links]]"` using final names). Fewer is fine; never pad. Shortlist with `vault.py related … --plan PLAN.json`, which also scores notes your splits will create. A name that matches no note, and no note this plan creates, fails the dry run. Added to what's already there. |
 | `supersedes` / `superseded_by` | for duplicates | Note names. The script makes them links. |
 | `created` | no | Script: existing `created` (or `date created` / `created_at` / `date`) → otherwise the earliest of file birth time, modified time, and any `YYYY-MM-DD` in the filename. |
-| `modified` | no | Script: today if the body changed in this run. Otherwise the date of the user's last real edit (file mtime), not the date the skill added frontmatter. |
+| `modified` | no | Script: today if this run changed the body through a split, an append or an edit. Link fixes and frontmatter don't count. Otherwise it's the date of the user's last real edit (file mtime). |
 | `aliases` | no | Script adds the old filename on rename (skipped for "Untitled N" and case-only renames), so search and autocomplete still find the old name. |
 | `split_from` | no | Script sets it on notes created by a split. |
 | `processed` | no | Script stamps date and time (minutes) on every note it changed. A note edited after this stamp shows up in the next `--scope changed` scan. |

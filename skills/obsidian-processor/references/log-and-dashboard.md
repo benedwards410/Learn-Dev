@@ -39,7 +39,7 @@ Undo: tell Claude "undo obsidian-processor run 20261113-140500".
 | renamed | changed filename |
 | superseded | marked as replaced by a newer note |
 | edited | `insert_top` / `body_edits` applied |
-| frontmatter | only properties changed |
+| frontmatter | properties were added or changed (listed alongside any other action) |
 | links | a `[[link]]` to a renamed or moved note was updated |
 | restored / removed | an undo |
 
@@ -56,8 +56,8 @@ Obsidian ignores dot-folders, so none of this shows up in search or the graph.
 | Path | What |
 |---|---|
 | `config.json` | folder names, category vocabulary, excludes, split thresholds, batch size |
-| `plans/<stamp>.json` | the plans Claude wrote (useful for auditing a run) |
-| `runs/<run id>.json` | manifest: every file created, modified or moved, with the hash written |
+| `plans/<stamp>.json` | the plans Claude wrote; each run manifest's `plan` field points to the one it executed |
+| `runs/<run id>.json` | manifest: the plan path, every file created, modified or moved, and the hash written |
 | `backups/<run id>.zip` | the original bytes of every file the run changed |
 | `bin/vault.py` | the tool copy, when running through Desktop Commander |
 
