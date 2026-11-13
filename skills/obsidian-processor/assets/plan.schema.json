@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "obsidian-processor plan",
+  "description": "What Claude decided for each note. vault.py apply executes it: backup, splits, edits, frontmatter, renames/moves, link fixes, log. Paths are relative to the vault root.",
+  "type": "object",
+  "required": ["notes"],
+  "properties": {
+    "request": {"type": "string", "description": "The user's request, for the manifest (e.g. \"triage my vault\")."},
+    "notes": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {"type": "string", "description": "Current path (or unique name) of the note."},
+          "title": {"type": "string", "description": "New title = new filename without .md. Omit to keep the current name."},
+          "folder": {"type": "string", "description": "Destination folder, e.g. \"20-Areas\" or \"30-Reference/RAG Pipeline\". \"\" = vault root. Omit to keep."},
+          "frontmatter": {"$ref": "#/$defs/frontmatter"},
+          "splits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["start", "end"],
+              "additionalProperties": false,
+              "properties": {
+                "start": {"type": "integer", "minimum": 1, "description": "First file line (from `outline`), inclusive."},
+                "end": {"type": "integer", "minimum": 1, "description": "Last file line, inclusive."},
+                "mode": {"enum": ["new", "append"], "default": "new"},
+                "title": {"type": "string", "description": "mode=new: title of the new note."},
+                "folder": {"type": "string", "description": "mode=new: folder of the new note (default: the parent's final folder)."},
+                "target": {"type": "string", "description": "mode=append: existing note to append to (path or name)."},
+                "frontmatter": {"$ref": "#/$defs/frontmatter"},
+                "summary": {"type": "string", "description": "Log line for the created note."}
+              }
+            }
+          },
+          "insert_top": {"type": "string", "description": "Text inserted right under the frontmatter (edit requests only)."},
+          "body_edits": {
+            "type": "array",
+            "description": "Exact replacements (edit requests only). Each find must occur exactly once in the body.",
+            "items": {
+              "type": "object",
+              "required": ["find", "replace"],
+              "additionalProperties": false,
+              "properties": {"find": {"type": "string"}, "replace": {"type": "string"}}
+            }
+          },
+          "summary": {"type": "string", "description": "One human sentence for the log and the report."}
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Things Claude would not guess. Each becomes a checkbox under 'Needs you' in the Processing Log."
+    }
+  },
+  "$defs": {
+    "frontmatter": {
+      "type": "object",
+      "description": "Proposed properties. Existing user values win (see references/frontmatter.md). Don't send created/modified/processed/aliases/split_from; the script sets them.",
+      "properties": {
+        "title": {"type": "string"},
+        "description": {"type": "string", "maxLength": 200},
+        "category": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "status": {"enum": ["draft", "active", "superseded", "archived"]},
+        "origin": {"enum": ["user", "llm", "mixed", "unknown"]},
+        "related": {"type": "array", "items": {"type": "string"}, "description": "Note names; written as [[links]] with final names."},
+        "supersedes": {"type": "string"},
+        "superseded_by": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

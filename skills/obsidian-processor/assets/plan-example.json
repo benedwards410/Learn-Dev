@@ -1,0 +1,135 @@
+{
+  "request": "triage my vault",
+  "notes": [
+    {
+      "path": "kce notes final v2.md",
+      "title": "KCE Ops Notes",
+      "folder": "20-Areas",
+      "frontmatter": {
+        "description": "How KCE bills Matrix, closes out jobs, and what to follow up on.",
+        "category": "KCE",
+        "tags": [
+          "kce",
+          "operations",
+          "billing"
+        ],
+        "status": "active",
+        "origin": "user",
+        "related": [
+          "Matrix Billing",
+          "Contractors"
+        ]
+      },
+      "splits": [
+        {
+          "start": 15,
+          "end": 23,
+          "mode": "append",
+          "target": "Fantasy Football",
+          "summary": "fantasy football section moved out of the KCE note"
+        }
+      ],
+      "summary": "Renamed from a version-word filename, filed to Areas, fantasy football section moved to [[Fantasy Football]]."
+    },
+    {
+      "path": "Python.md",
+      "title": "RAG File Types and Embedding",
+      "folder": "30-Reference/RAG Pipeline",
+      "frontmatter": {
+        "description": "Which file types the RAG parser reads, the chunk size, and the embedder.py code.",
+        "category": "RAG Pipeline",
+        "tags": [
+          "rag",
+          "python",
+          "parsing",
+          "embeddings"
+        ],
+        "status": "active",
+        "origin": "mixed",
+        "supersedes": "File types for parsing",
+        "related": [
+          "Embedder Snippet",
+          "RAG Pipeline litellm Prompt"
+        ]
+      },
+      "summary": "Newer copy of the parsing note (adds embedder.py); kept as the active note."
+    },
+    {
+      "path": "File types for parsing.md",
+      "title": "File Types for Parsing",
+      "folder": "90-Archive",
+      "frontmatter": {
+        "description": "Older list of file types the RAG parser reads; replaced by the embedding note.",
+        "category": "RAG Pipeline",
+        "tags": [
+          "rag",
+          "parsing"
+        ],
+        "status": "superseded",
+        "origin": "mixed",
+        "superseded_by": "RAG File Types and Embedding"
+      },
+      "summary": "Superseded by [[RAG File Types and Embedding]]; archived, not deleted."
+    },
+    {
+      "path": "Untitled 3.md",
+      "folder": "00-Inbox",
+      "frontmatter": {
+        "description": "Short reminder to call someone back on Tuesday; topic unclear.",
+        "tags": [
+          "needs-review"
+        ],
+        "status": "draft",
+        "origin": "user"
+      },
+      "summary": "Topic unclear: left in the Inbox as a draft with a question for you."
+    },
+    {
+      "path": "Create plan for new  skill generation- organize obsidian.md",
+      "title": "Obsidian Processor Skill Plan",
+      "folder": "10-Projects",
+      "frontmatter": {
+        "description": "Goals and draft rules for the skill that files, names, splits and logs Obsidian notes.",
+        "category": "Obsidian",
+        "tags": [
+          "obsidian",
+          "skill",
+          "automation"
+        ],
+        "status": "active",
+        "origin": "mixed",
+        "related": [
+          "RAG Pipeline litellm Prompt"
+        ]
+      },
+      "splits": [
+        {
+          "start": 121,
+          "end": 193,
+          "mode": "new",
+          "title": "RAG Pipeline litellm Prompt",
+          "folder": "30-Reference/RAG Pipeline",
+          "frontmatter": {
+            "description": "Prompt for making litellm the only model interface in the RAG pipeline, chosen by config.",
+            "category": "RAG Pipeline",
+            "tags": [
+              "rag",
+              "litellm",
+              "prompt"
+            ],
+            "status": "active",
+            "origin": "llm",
+            "related": [
+              "RAG File Types and Embedding"
+            ]
+          },
+          "summary": "litellm / RAG prompt split out of the skill plan"
+        }
+      ],
+      "summary": "Renamed, filed to Projects; the unrelated litellm prompt moved to its own note."
+    }
+  ],
+  "questions": [
+    "What is [[Untitled 3]] about: a call to return, or something to buy? Tell me and I'll title and file it."
+  ]
+}
