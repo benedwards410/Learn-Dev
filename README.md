@@ -11,6 +11,8 @@ A Claude skill that keeps an Obsidian vault organized. Say **"triage my vault"**
 | 🗄️ | **Archives** the older copy of a duplicate. Nothing is ever deleted |
 | 📜 | **Logs** every change in `99-Meta/Processing Log.md`, with one-step **undo** |
 
+One-pagers: [Install](docs/INSTALL.md) · [Use](docs/USAGE.md) · [FAQ](docs/FAQ.md)
+
 ## Install
 
 **Claude Code** (works on the vault directly):
